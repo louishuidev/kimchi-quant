@@ -109,30 +109,30 @@ def get_binance_kline(start_time=None, end_time=None):
         return None
 
 def calculate_metrics(trades_df: pd.DataFrame, initial_capital: float = 10000) -> Dict:
-    """计算交易性能指标"""
-    print("\n计算交易指标...")
+    """Calculate trading performance metrics"""
+    print("\nCalculating trading metrics...")
     
     if trades_df.empty:
-        print("无交易记录，跳过指标计算")
+        print("No trade records, skipping metrics calculation")
         return {}
     
-    # 计算每日收益
+    # Calculate daily returns
     trades_df['daily_returns'] = trades_df['profit_loss_pct'] / 100
     
-    # 计算指标
+    # Calculate metrics
     total_days = (trades_df['exit_time'].max() - trades_df['entry_time'].min()).days
     
-    # CAGR计算
+    # CAGR calculation
     total_return = (1 + trades_df['daily_returns']).prod() - 1
     cagr = (1 + total_return) ** (365 / total_days) - 1
     
-    # 计算最大回撤
+    # Calculate maximum drawdown
     cumulative_returns = (1 + trades_df['daily_returns']).cumprod()
     rolling_max = cumulative_returns.expanding().max()
     drawdowns = (cumulative_returns - rolling_max) / rolling_max
     max_drawdown = drawdowns.min()
     
-    # 夏普比率 (假设无风险利率为2%)
+    # Sharpe Ratio (assuming risk-free rate is 2%)
     rf_rate = 0.02
     excess_returns = trades_df['daily_returns'] - (rf_rate / 365)
     sharpe_ratio = np.sqrt(365) * (excess_returns.mean() / excess_returns.std())
@@ -145,25 +145,25 @@ def calculate_metrics(trades_df: pd.DataFrame, initial_capital: float = 10000) -
         'Win_Rate': (trades_df['reason'] == 'take_profit').mean()
     }
     
-    print(f"计算完成: {len(trades_df)}笔交易")
+    print(f"Calculation complete: {len(trades_df)} trades")
     return metrics
 
 def generate_sharpe_heatmap(x_range: List[float], y_range: List[float]) -> None:
-    """生成并保存夏普比率热力图"""
-    print("\n=== 开始生成夏普比率热力图 ===")
-    print(f"测试范围: X (做多信号): {min(x_range)}% 到 {max(x_range)}%")
-    print(f"测试范围: Y (做空信号): {min(y_range)}% 到 {max(y_range)}%")
+    """Generate and save Sharpe Ratio heatmap"""
+    print("\n=== Starting Sharpe Ratio Heatmap Generation ===")
+    print(f"Testing range: X (Long signal): {min(x_range)}% to {max(x_range)}%")
+    print(f"Testing range: Y (Short signal): {min(y_range)}% to {max(y_range)}%")
     print("=" * 50)
     
     results = []
     total_combinations = len(x_range) * len(y_range)
     current_count = 0
     
-    for y in y_range:  # 反转循环顺序
+    for y in y_range:  # Reverse loop order
         row = []
-        for x in x_range:  # 反转循环顺序
+        for x in x_range:  # Reverse loop order
             current_count += 1
-            print(f"\n测试组合 [{current_count}/{total_combinations}]: X={x}%, Y={y}%")
+            print(f"\nTesting combination [{current_count}/{total_combinations}]: X={x}%, Y={y}%")
             
             try:
                 signals_df_upbit = get_upbit_kline(x=x, y=y)
@@ -180,49 +180,49 @@ def generate_sharpe_heatmap(x_range: List[float], y_range: List[float]) -> None:
                     metrics = calculate_metrics(trades_df)
                     sharpe = metrics['Sharpe_Ratio']
                     row.append(sharpe)
-                    print(f"完成计算: Sharpe比率 = {sharpe:.2f}")
+                    print(f"Completed calculation: Sharpe ratio = {sharpe:.2f}")
                 else:
                     row.append(np.nan)
-                    print("此组合无交易记录")
+                    print("This combination has no trade records")
             except Exception as e:
-                print(f"错误: {str(e)}")
+                print(f"Error: {str(e)}")
                 row.append(np.nan)
         results.append(row)
     
-    print("\n=== 生成热力图 ===")
+    print("\n=== Generating Heatmap ===")
     plt.figure(figsize=(12, 8))
     sns.heatmap(
-        np.array(results).T,  # 转置矩阵
-        xticklabels=[f"{x:.1f}%" for x in x_range],  # 调整标签
-        yticklabels=[f"{y:.1f}%" for y in y_range],  # 调整标签
+        np.array(results).T,  # Transpose matrix
+        xticklabels=[f"{x:.1f}%" for x in x_range],  # Adjust labels
+        yticklabels=[f"{y:.1f}%" for y in y_range],  # Adjust labels
         annot=True,
         fmt='.2f',
         cmap='RdYlGn'
     )
-    plt.title('Sharpe Ratio Heatmap (夏普比率热力图)')
-    plt.xlabel('X% (做多信号百分比)')  # 调整标签
-    plt.ylabel('Y% (做空信号百分比)')  # 调整标签
+    plt.title('Sharpe Ratio Heatmap')
+    plt.xlabel('X% (Long signal percentage)')  # Adjust labels
+    plt.ylabel('Y% (Short signal percentage)')  # Adjust labels
     
-    # 保存热力图
+    # Save heatmap
     plt.savefig('sharpe_heatmap.png')
-    print(f"\n热力图已保存至: {os.path.abspath('sharpe_heatmap.png')}")
+    print(f"\nHeatmap saved to: {os.path.abspath('sharpe_heatmap.png')}")
     plt.close()
 
 def backtesting_kimchi(signals_df_upbit=None, take_profit_pct: float = 2.0, stop_loss_pct: float = 2.0, x: float = None, y: float = None):
     """
-    回测交易策略
+    Backtest trading strategy
     
     Args:
-        signals_df_upbit: 交易信号数据
-        take_profit_pct: 止盈百分比 (默认2%)
-        stop_loss_pct: 止损百分比 (默认2%)
+        signals_df_upbit: Trading signal data
+        take_profit_pct: Take profit percentage (default 2%)
+        stop_loss_pct: Stop loss percentage (default 2%)
     """
     if signals_df_upbit is None:
         signals_df_upbit = get_upbit_kline()
     
-    print(f"\n使用止盈止损设置:")
-    print(f"止盈: {take_profit_pct}%")
-    print(f"止损: {stop_loss_pct}%")
+    print(f"\nUsing take profit and stop loss settings:")
+    print(f"Take Profit: {take_profit_pct}%")
+    print(f"Stop Loss: {stop_loss_pct}%")
     
     trade_records = []
     
@@ -297,19 +297,19 @@ def backtesting_kimchi(signals_df_upbit=None, take_profit_pct: float = 2.0, stop
                             trade_records.append(trade_record)
                             break
 
-    # 修改性能分析输出部分
+    # Modify performance analysis output section
     if trade_records:
         trades_df = pd.DataFrame(trade_records)
         
-        # 修改文件名以包含x和y参数
+        # Modify filename to include x and y parameters
         csv_filename = f'trade_records_x{x}_y{y}_{datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")}.csv'
         trades_df.to_csv(csv_filename, index=False)
         
-        # 计算并显示指标
+        # Calculate and display metrics
         metrics = calculate_metrics(trades_df)
         
         print("\n=== Trading Performance Analysis ===")
-        print(f"Take Profit: {take_profit_pct}% | Stop Loss: {stop_loss_pct}%")  # 现在会显示正确的2%
+        print(f"Take Profit: {take_profit_pct}% | Stop Loss: {stop_loss_pct}%")
         print(f"Total trades: {metrics['Total_Trades']}")
         print(f"CAGR: {metrics['CAGR']:.2%}")
         print(f"Maximum Drawdown: {metrics['Max_Drawdown']:.2%}")
@@ -320,27 +320,16 @@ def backtesting_kimchi(signals_df_upbit=None, take_profit_pct: float = 2.0, stop
 
 # Example usage for optimization
 def optimize_strategy():
-    """优化策略参数"""
-    print("\n=== 开始策略优化 ===")
+    """Optimize strategy parameters"""
+    print("\n=== Starting Strategy Optimization ===")
     x_range = np.arange(3, 5, 0.5)  # X% from 3% to 5% with 0.5% steps
     y_range = np.arange(3, 5, 0.5)  # Y% from 3% to 5% with 0.5% steps
     
-    print(f"X范围: {x_range}")
-    print(f"Y范围: {y_range}")
-    print(f"总共需要测试 {len(x_range) * len(y_range)} 种组合")
+    print(f"X range: {x_range}")
+    print(f"Y range: {y_range}")
+    print(f"Total combinations to test: {len(x_range) * len(y_range)}")
     
     generate_sharpe_heatmap(x_range.tolist(), y_range.tolist())
 
 
 optimize_strategy()
-
-# Run
-# signals_df = get_upbit_kline()
-# print(f"Long Signal: {long_signal}")
-# convert a
-# print(f"Short Signal: {short_signal}")
-
-# if not signals_df.empty:
-#     start_time = signals_df['timestamp'].iloc[0]
-#     end_time = datetime.utcnow()
-#     get_binance_kline(start_time, end_time)
