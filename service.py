@@ -170,7 +170,9 @@ def generate_sharpe_heatmap(x_range: List[float], y_range: List[float]) -> None:
                 trade_records = backtesting_kimchi(
                     signals_df_upbit, 
                     take_profit_pct=2.0,
-                    stop_loss_pct=2.0
+                    stop_loss_pct=2.0,
+                    x=x,
+                    y=y
                 )
                 
                 if trade_records:
