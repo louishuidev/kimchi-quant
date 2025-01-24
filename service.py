@@ -206,7 +206,7 @@ def generate_sharpe_heatmap(x_range: List[float], y_range: List[float]) -> None:
     print(f"\n热力图已保存至: {os.path.abspath('sharpe_heatmap.png')}")
     plt.close()
 
-def backtesting_kimchi(signals_df_upbit=None, take_profit_pct: float = 2.0, stop_loss_pct: float = 2.0):
+def backtesting_kimchi(signals_df_upbit=None, take_profit_pct: float = 2.0, stop_loss_pct: float = 2.0, x: float = None, y: float = None):
     """
     回测交易策略
     
@@ -299,8 +299,8 @@ def backtesting_kimchi(signals_df_upbit=None, take_profit_pct: float = 2.0, stop
     if trade_records:
         trades_df = pd.DataFrame(trade_records)
         
-        # 保存交易记录
-        csv_filename = f'trade_records_{datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")}.csv'
+        # 修改文件名以包含x和y参数
+        csv_filename = f'trade_records_x{x}_y{y}_{datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")}.csv'
         trades_df.to_csv(csv_filename, index=False)
         
         # 计算并显示指标
