@@ -21,7 +21,7 @@
 
 
 import requests
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import pytz
 import pandas as pd
 import numpy as np
@@ -34,16 +34,18 @@ import os
 
 def get_upbit_kline(x: float = 5, y: float = 5):
     market = 'SGD-BTC'
-    count = 200  # limitation 200days on upbit
+    count = 200  # limitation 200 days on Upbit
     url = f'https://sg-api.upbit.com/v1/candles/days?market={market}&count={count}'
     response = requests.get(url)
 
     if response.status_code == 200:
         data = response.json()
-        print(f'Length of data: {len(data)}')
-        
         # Reverse data to chronological order
         data = data[::-1]
+        print(f'Length of data: {len(data)}')
+        # print(f'data head: {pd.DataFrame(data).head()}')
+        # print(f'data tail: {pd.DataFrame(data).tail()}')
+        
         previous_close = None
         signals = []
         
@@ -74,10 +76,24 @@ def get_upbit_kline(x: float = 5, y: float = 5):
           
         # Convert signals to DataFrame
         signals_df = pd.DataFrame(signals)
-        return signals_df
+        # Ensure the timestamp column is in datetime64[ns] format
+        signals_df['timestamp'] = pd.to_datetime(signals_df['timestamp'])
+        # Define the backtest and forward test periods using numpy.datetime64
+        backtest_start = np.datetime64('2024-06-16')
+        backtest_end = np.datetime64('2024-12-31')
+        forward_test_start = np.datetime64('2025-01-01')
+        forward_test_end = np.datetime64('2025-01-24')
+        
+        # Convert signals_df timestamp to numpy.datetime64
+        signals_df['timestamp'] = signals_df['timestamp'].astype('datetime64[ns]')
+        
+        # Filter the signals DataFrame
+        backtest_signals = signals_df[(signals_df['timestamp'] >= backtest_start) & (signals_df['timestamp'] <= backtest_end)]
+        forward_test_signals = signals_df[(signals_df['timestamp'] > backtest_end) & (signals_df['timestamp'] <= forward_test_end)] 
+        return backtest_signals, forward_test_signals
     else:
         print(f"Error: {response.status_code}, {response.text}")
-        return pd.DataFrame()  # Return empty DataFrame in case of error
+        return None, None
 
 def get_binance_kline(start_time=None, end_time=None):
     url = "https://fapi.binance.com/fapi/v1/klines"
@@ -149,8 +165,8 @@ def calculate_metrics(trades_df: pd.DataFrame, initial_capital: float = 10000) -
     return metrics
 
 def generate_sharpe_heatmap(x_range: List[float], y_range: List[float]) -> None:
-    """Generate and save Sharpe Ratio heatmap"""
-    print("\n=== Starting Sharpe Ratio Heatmap Generation ===")
+    """Generate and save Sharpe Ratio heatmap for backtest period"""
+    print("\n=== Starting Sharpe Ratio Heatmap Generation (Backtest Period) ===")
     print(f"Testing range: X (Long signal): {min(x_range)}% to {max(x_range)}%")
     print(f"Testing range: Y (Short signal): {min(y_range)}% to {max(y_range)}%")
     print("=" * 50)
@@ -159,16 +175,19 @@ def generate_sharpe_heatmap(x_range: List[float], y_range: List[float]) -> None:
     total_combinations = len(x_range) * len(y_range)
     current_count = 0
     
-    for y in y_range:  # Reverse loop order
+    for y in y_range:
         row = []
-        for x in x_range:  # Reverse loop order
+        for x in x_range:
             current_count += 1
             print(f"\nTesting combination [{current_count}/{total_combinations}]: X={x}%, Y={y}%")
             
             try:
-                signals_df_upbit = get_upbit_kline(x=x, y=y)
+                # Get signals
+                backtest_signals, _ = get_upbit_kline(x=x, y=y)
+                
+                # Correctly pass parameters to backtesting_kimchi
                 trade_records = backtesting_kimchi(
-                    signals_df_upbit, 
+                    signals_df_upbit=(backtest_signals, None),  # Named parameter
                     take_profit_pct=2.0,
                     stop_loss_pct=2.0,
                     x=x,
@@ -190,7 +209,7 @@ def generate_sharpe_heatmap(x_range: List[float], y_range: List[float]) -> None:
         results.append(row)
     
     print("\n=== Generating Heatmap ===")
-    plt.figure(figsize=(12, 8))
+    plt.figure(figsize=(14, 10))  # Increase figure size
     sns.heatmap(
         np.array(results).T,  # Transpose matrix
         xticklabels=[f"{x:.1f}%" for x in x_range],  # Adjust labels
@@ -200,8 +219,8 @@ def generate_sharpe_heatmap(x_range: List[float], y_range: List[float]) -> None:
         cmap='RdYlGn'
     )
     plt.title('Sharpe Ratio Heatmap')
-    plt.xlabel('X% (Long signal percentage)')  # Adjust labels
-    plt.ylabel('Y% (Short signal percentage)')  # Adjust labels
+    plt.xlabel('X% (price up % percentage)', fontsize=12)  # Adjust font size
+    plt.ylabel('Y% (price down % percentage)', fontsize=12)  # Adjust font size
     
     # Save heatmap
     plt.savefig('sharpe_heatmap.png')
@@ -213,21 +232,23 @@ def backtesting_kimchi(signals_df_upbit=None, take_profit_pct: float = 2.0, stop
     Backtest trading strategy
     
     Args:
-        signals_df_upbit: Trading signal data
+        signals_df_upbit: Trading signal data (tuple of backtest and forward test signals)
         take_profit_pct: Take profit percentage (default 2%)
         stop_loss_pct: Stop loss percentage (default 2%)
     """
     if signals_df_upbit is None:
         signals_df_upbit = get_upbit_kline()
     
+    # Unpack the tuple - use backtest signals
+    backtest_signals, _ = signals_df_upbit
     print(f"\nUsing take profit and stop loss settings:")
     print(f"Take Profit: {take_profit_pct}%")
     print(f"Stop Loss: {stop_loss_pct}%")
     
     trade_records = []
     
-    if not signals_df_upbit.empty:
-        for _, signal_row in signals_df_upbit.iterrows():
+    if not backtest_signals.empty:
+        for _, signal_row in backtest_signals.iterrows():
             signal_time = signal_row['timestamp']
             position_type = signal_row['position']
             
@@ -319,11 +340,11 @@ def backtesting_kimchi(signals_df_upbit=None, take_profit_pct: float = 2.0, stop
     return trade_records
 
 # Example usage for optimization
-def optimize_strategy():
+def optimize_strategy(x: float, y: float, step: float):
     """Optimize strategy parameters"""
     print("\n=== Starting Strategy Optimization ===")
-    x_range = np.arange(3, 5, 0.5)  # X% from 3% to 5% with 0.5% steps
-    y_range = np.arange(3, 5, 0.5)  # Y% from 3% to 5% with 0.5% steps
+    x_range = np.arange(x, y, step)  # X% from x to x+2 with step steps
+    y_range = np.arange(x, y, step)  # Y% from y to y+2 with step steps
     
     print(f"X range: {x_range}")
     print(f"Y range: {y_range}")
@@ -331,5 +352,32 @@ def optimize_strategy():
     
     generate_sharpe_heatmap(x_range.tolist(), y_range.tolist())
 
+def forward_testing(x: float, y: float):
+    """Forward test the strategy"""
+    print("\n=== Starting Forward Test ===")
+    
+    # Get forward test data
+    _, forward_test_signals = get_upbit_kline(x=x, y=y)
+    
+    # Correctly pass parameters to backtesting_kimchi
+    trade_records = backtesting_kimchi(
+        signals_df_upbit=(forward_test_signals, None),  # Named parameter
+        take_profit_pct=2.0,
+        stop_loss_pct=2.0,
+        x=x,
+        y=y
+    )
+    
+    # Calculate and display forward test performance metrics
+    if trade_records:
+        trades_df = pd.DataFrame(trade_records)
+        metrics = calculate_metrics(trades_df)
+        
+        print("\n=== Forward Testing Performance Analysis ===")
+        print(f"Total trades: {metrics['Total_Trades']}")
+        print(f"CAGR: {metrics['CAGR']:.2%}")
+        print(f"Maximum Drawdown: {metrics['Max_Drawdown']:.2%}")
+        print(f"Sharpe Ratio: {metrics['Sharpe_Ratio']:.2f}")
+        print(f"Win Rate: {metrics['Win_Rate']:.2%}")
 
-optimize_strategy()
+optimize_strategy(3, 5, 0.5)
