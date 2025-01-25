@@ -1,0 +1,9 @@
+CAGR,Max_Drawdown,Sharpe_Ratio,Total_Trades,Win_Rate
+-0.04493906012488469,-0.14612850477651132,-0.13916364941754192,22,0.5
+
+=== Forward Testing Performance Analysis ===
+Total trades: 22
+CAGR: -4.49%
+Maximum Drawdown: -14.61%
+Sharpe Ratio: -0.14
+Win Rate: 50.00%
