@@ -380,4 +380,4 @@ def forward_testing(x: float, y: float):
         print(f"Sharpe Ratio: {metrics['Sharpe_Ratio']:.2f}")
         print(f"Win Rate: {metrics['Win_Rate']:.2%}")
 
-optimize_strategy(3, 8, 0.5)
+optimize_strategy(3, 8, 0.25)
