@@ -43,8 +43,8 @@ def get_upbit_kline(x: float = 5, y: float = 5):
         # Reverse data to chronological order
         data = data[::-1]
         print(f'Length of data: {len(data)}')
-        # print(f'data head: {pd.DataFrame(data).head()}')
-        # print(f'data tail: {pd.DataFrame(data).tail()}')
+        print(f'data head: {pd.DataFrame(data).head()}')
+        print(f'data tail: {pd.DataFrame(data).tail()}')
         
         previous_close = None
         signals = []
@@ -79,11 +79,10 @@ def get_upbit_kline(x: float = 5, y: float = 5):
         # Ensure the timestamp column is in datetime64[ns] format
         signals_df['timestamp'] = pd.to_datetime(signals_df['timestamp'])
         # Define the backtest and forward test periods using numpy.datetime64
-        backtest_start = np.datetime64('2024-06-16')
-        backtest_end = np.datetime64('2024-12-31')
+        backtest_start = np.datetime64('2024-06-18')
+        backtest_end = np.datetime64('2024-08-31')
         forward_test_start = np.datetime64('2025-01-01')
         forward_test_end = np.datetime64('2025-01-24')
-        
         # Convert signals_df timestamp to numpy.datetime64
         signals_df['timestamp'] = signals_df['timestamp'].astype('datetime64[ns]')
         
@@ -105,12 +104,14 @@ def get_binance_kline(start_time=None, end_time=None):
 
     if start_time or end_time:
         params['startTime'] = int(start_time.timestamp() * 1000)
-        params['endTime'] = int(end_time.timestamp() * 1000)
+        # params['endTime'] = int(end_time.timestamp() * 1000)
+        params['endTime'] = int(datetime.now(timezone.utc).timestamp() * 1000)
 
     response = requests.get(url, params=params)
 
     if response.status_code == 200:
         data = response.json()
+      
         df = pd.DataFrame(data, columns=[
             'timestamp', 'open', 'high', 'low', 'close', 'volume', 'close_time',
             'quote_asset_volume', 'number_of_trades', 'taker_buy_base_asset_volume',
@@ -188,8 +189,8 @@ def generate_sharpe_heatmap(x_range: List[float], y_range: List[float]) -> None:
                 # Correctly pass parameters to backtesting_kimchi
                 trade_records = backtesting_kimchi(
                     signals_df_upbit=(backtest_signals, None),  # Named parameter
-                    take_profit_pct=2.0,
-                    stop_loss_pct=2.0,
+                    take_profit_pct=1.0,
+                    stop_loss_pct=1.0,
                     x=x,
                     y=y
                 )
@@ -251,7 +252,6 @@ def backtesting_kimchi(signals_df_upbit=None, take_profit_pct: float = 2.0, stop
         for _, signal_row in backtest_signals.iterrows():
             signal_time = signal_row['timestamp']
             position_type = signal_row['position']
-            
             binance_klines = get_binance_kline(signal_time, datetime.now(timezone.utc))
             if binance_klines is None:
                 continue
@@ -259,8 +259,7 @@ def backtesting_kimchi(signals_df_upbit=None, take_profit_pct: float = 2.0, stop
             for _, binance_row in binance_klines.iterrows():
                 if binance_row['timestamp'] == signal_time:
                     entry_price = binance_row['close']
-                    # print(f"Executing {position_type} position at {signal_time} with entry price: {entry_price}")
-                    
+                    # print(f"Executing {position_type} position at binance {signal_time} with entry price: {entry_price}")
                     trade_record = {
                         'entry_time': signal_time,
                         'position': position_type,
@@ -357,21 +356,30 @@ def forward_testing(x: float, y: float):
     print("\n=== Starting Forward Test ===")
     
     # Get forward test data
-    _, forward_test_signals = get_upbit_kline(x=x, y=y)
-    
+    backtest_signals, forward_test_signals = get_upbit_kline(x=x, y=y)
     # Correctly pass parameters to backtesting_kimchi
     trade_records = backtesting_kimchi(
         signals_df_upbit=(forward_test_signals, None),  # Named parameter
-        take_profit_pct=2.0,
-        stop_loss_pct=2.0,
+        take_profit_pct=1.0,
+        stop_loss_pct=1.0,
         x=x,
         y=y
     )
     
     # Calculate and display forward test performance metrics
     if trade_records:
+        print(f'trade_records: \n {trade_records}')
         trades_df = pd.DataFrame(trade_records)
         metrics = calculate_metrics(trades_df)
+        
+        # Save metrics to CSV
+        metrics_df = pd.DataFrame([metrics])  # Create a DataFrame from the metrics dictionary
+        metrics_csv_filename = f'forward_test_metrics_x{x}_y{y}.csv'
+        metrics_df.to_csv(metrics_csv_filename, index=False)
+        
+        # Modify filename to include x and y parameters for trade records
+        csv_filename = f'forward_test_trade_records_x{x}_y{y}.csv'
+        trades_df.to_csv(csv_filename, index=False)
         
         print("\n=== Forward Testing Performance Analysis ===")
         print(f"Total trades: {metrics['Total_Trades']}")
@@ -379,5 +387,13 @@ def forward_testing(x: float, y: float):
         print(f"Maximum Drawdown: {metrics['Max_Drawdown']:.2%}")
         print(f"Sharpe Ratio: {metrics['Sharpe_Ratio']:.2f}")
         print(f"Win Rate: {metrics['Win_Rate']:.2%}")
+        print(f"Metrics saved to: {os.path.abspath(metrics_csv_filename)}")
+        print(f"Forward Trade records saved to: {os.path.abspath(csv_filename)}")
 
-optimize_strategy(3, 8, 0.25)
+# optimize_strategy(3, 5, 0.5)
+
+# best params x= 3.5, y= 4 in backtest 
+# quick spot: I also tested x= 3.5, y= 4.5 in forward test , this is better than pervious best params, please reference in sharpe_heatmap.png
+forward_testing(3.5,4.5)
+forward_testing(3.5,4)
+
