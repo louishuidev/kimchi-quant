@@ -1,25 +1,3 @@
-# a. b. c. d. e. 
-# When Bitcoin goes up X% on Upbit Exchange, Long Bitcoin in Binance; when Bitcoin goes
-
-# ans:
-# Strategy Description:
-# 1. Strategy Objective:
-# When Bitcoin rises more than X% on the Upbit exchange, go long on Bitcoin on Binance.
-# When Bitcoin falls more than Y% on the Upbit exchange, go short on Bitcoin on Binance.
-# Backtesting Process:
-# First, use the get_upbit_kline() function to obtain kline data from Upbit.
-# Calculate the percentage change in price for each time period and identify long and short signals.
-# For each long signal, record the start and end time of the signal.
-# Use the get_binance_kline() function to obtain kline data from Binance for the corresponding time range.
-# Loop through the kline data from Binance to simulate the execution of the trading strategy. down Y% on UpBit exchange, Short Bitcoin in Binance.
-
-# You need to collect price of Bitcoin Perpetual Futures from UpBit & Binance respectively.
-# Divide the whole data period into 2 parts. 50% of the time for backtest another 50% for
-# forward test. For example, you have data from 01/2021 to 01/2023. Then 01/2021 to 01/2022 is used for backtest. 01/2022 to 01/2023 is used for forward test.
-# Generate a sharpe heat map to loop and find the best X & Y combination. (like image above)
-# Calculate CAGR, Maximum Drawdown and Sharpe Ratio
-
-
 import requests
 from datetime import datetime, timezone, timedelta
 import pytz
@@ -390,10 +368,11 @@ def forward_testing(x: float, y: float):
         print(f"Metrics saved to: {os.path.abspath(metrics_csv_filename)}")
         print(f"Forward Trade records saved to: {os.path.abspath(csv_filename)}")
 
-# optimize_strategy(3, 5, 0.5)
 
+# run start:
+optimize_strategy(3, 5, 0.5)
 # best params x= 3.5, y= 4 in backtest 
 # quick spot: I also tested x= 3.5, y= 4.5 in forward test , this is better than pervious best params, please reference in sharpe_heatmap.png
-forward_testing(3.5,4.5)
-forward_testing(3.5,4)
+# forward_testing(3.5,4.5)
+# forward_testing(3.5,4)
 
