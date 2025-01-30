@@ -21,10 +21,6 @@ def get_upbit_kline(x: float = 5, y: float = 5):
             data = response.json()
             # Reverse data to chronological order
             data = data[::-1]
-            print(f'Length of data: {len(data)}')
-            print(f'data head: {pd.DataFrame(data).head()}')
-            print(f'data tail: {pd.DataFrame(data).tail()}')
-            
             previous_close = None
             signals = []
             
@@ -57,17 +53,20 @@ def get_upbit_kline(x: float = 5, y: float = 5):
             signals_df = pd.DataFrame(signals)
             # Ensure the timestamp column is in datetime64[ns] format
             signals_df['timestamp'] = pd.to_datetime(signals_df['timestamp'])
+            
             # Define the backtest and forward test periods using numpy.datetime64
             backtest_start = np.datetime64('2024-06-18')
             backtest_end = np.datetime64('2024-08-31')
-            forward_test_start = np.datetime64('2025-01-01')
+            forward_test_start = np.datetime64('2024-09-01')
             forward_test_end = np.datetime64('2025-01-24')
+            # forward_test_end = np.datetime64(datetime.now().strftime('%Y-%m-%d'))
+
             # Convert signals_df timestamp to numpy.datetime64
             signals_df['timestamp'] = signals_df['timestamp'].astype('datetime64[ns]')
-            
+
             # Filter the signals DataFrame
             backtest_signals = signals_df[(signals_df['timestamp'] >= backtest_start) & (signals_df['timestamp'] <= backtest_end)]
-            forward_test_signals = signals_df[(signals_df['timestamp'] > backtest_end) & (signals_df['timestamp'] <= forward_test_end)] 
+            forward_test_signals = signals_df[(signals_df['timestamp'] > forward_test_start) & (signals_df['timestamp'] <= forward_test_end)] 
             return backtest_signals, forward_test_signals
         else:
             print(f"Error: {response.status_code}, {response.text}")
