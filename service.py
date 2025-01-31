@@ -15,6 +15,7 @@ def get_upbit_kline(x: float = 5, y: float = 5):
         market = 'SGD-BTC'
         count = 200  # limitation 200 days on Upbit
         url = f'https://sg-api.upbit.com/v1/candles/days?market={market}&count={count}'
+        # url = f'https://sg-api.upbit.com/v1/candles/days?market={market}&count={count}&to=2025-01-25T00:00:00Z'
         response = requests.get(url)
 
         if response.status_code == 200:
@@ -23,7 +24,6 @@ def get_upbit_kline(x: float = 5, y: float = 5):
             data = data[::-1]
             previous_close = None
             signals = []
-            
             for candle in data:
                 timestamp = candle.get('candle_date_time_utc')
                 candle_time = datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S')
@@ -63,7 +63,7 @@ def get_upbit_kline(x: float = 5, y: float = 5):
 
             # Convert signals_df timestamp to numpy.datetime64
             signals_df['timestamp'] = signals_df['timestamp'].astype('datetime64[ns]')
-
+            # signals_df.to_csv('signals_df.csv', index=False)
             # Filter the signals DataFrame
             backtest_signals = signals_df[(signals_df['timestamp'] >= backtest_start) & (signals_df['timestamp'] <= backtest_end)]
             forward_test_signals = signals_df[(signals_df['timestamp'] > forward_test_start) & (signals_df['timestamp'] <= forward_test_end)] 
@@ -306,7 +306,7 @@ def backtesting_kimchi(signals_df_upbit=None, take_profit_pct: float = 2.0, stop
             
             # Modify filename to include x and y parameters
             csv_filename = f'trade_records_x{x}_y{y}_{datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")}.csv'
-            trades_df.to_csv(csv_filename, index=False)
+            # trades_df.to_csv(csv_filename, index=False)
             
             # Calculate and display metrics
             metrics = calculate_metrics(trades_df)
@@ -339,7 +339,7 @@ def optimize_strategy(x: float, y: float, step: float):
     except Exception as e:
         print(f"Error in optimize_strategy: {str(e)}")
 
-def forward_testing(x: float, y: float):
+def forward_testing(x: float, y: float, take_profit_pct: float, stop_loss_pct: float):
     try:
         print("\n=== Starting Forward Test ===")
         
@@ -348,8 +348,8 @@ def forward_testing(x: float, y: float):
         # Correctly pass parameters to backtesting_kimchi
         trade_records = backtesting_kimchi(
             signals_df_upbit=(forward_test_signals, None),  # Named parameter
-            take_profit_pct=1.0,
-            stop_loss_pct=1.0,
+            take_profit_pct=take_profit_pct,
+            stop_loss_pct=stop_loss_pct,
             x=x,
             y=y
         )
@@ -366,7 +366,7 @@ def forward_testing(x: float, y: float):
             metrics_df.to_csv(metrics_csv_filename, index=False)
             
             # Modify filename to include x and y parameters for trade records
-            csv_filename = f'forward_test_trade_records_x{x}_y{y}.csv'
+            csv_filename = f'forward_test_trade_records_x{x}_y{y}_tp{take_profit_pct}_sl{stop_loss_pct}.csv'
             trades_df.to_csv(csv_filename, index=False)
             
             print("\n=== Forward Testing Performance Analysis ===")
@@ -375,6 +375,8 @@ def forward_testing(x: float, y: float):
             print(f"Maximum Drawdown: {metrics['Max_Drawdown']:.2%}")
             print(f"Sharpe Ratio: {metrics['Sharpe_Ratio']:.2f}")
             print(f"Win Rate: {metrics['Win_Rate']:.2%}")
+            print(f'take_profit_pct: {take_profit_pct}')
+            print(f'stop_loss_pct: {stop_loss_pct}')
             print(f"Metrics saved to: {os.path.abspath(metrics_csv_filename)}")
             print(f"Forward Trade records saved to: {os.path.abspath(csv_filename)}")
     except Exception as e:
@@ -383,8 +385,14 @@ def forward_testing(x: float, y: float):
 
 # run start:
 optimize_strategy(3, 5, 0.5)
-# best params x= 3.5, y= 4 in backtest 
-# quick spot: I also tested x= 3.5, y= 4.5 in forward test , this is better than pervious best params, please reference in sharpe_heatmap.png
 forward_testing(3.5,4.5)
 # forward_testing(3.5,4)
+# get_upbit_kline()
+
+# best params x= 3.5, y= 4 in backtest 
+# quick spot: I also tested x= 3.5, y= 4.5 in forward test , this is better than pervious best params, please reference in sharpe_heatmap.png
+
+
+# optimize_strategy(3, 8, 0.5)
+# forward_testing(3.2,5.4,10.0,5.0)
 
